@@ -2,7 +2,7 @@ import os
 from time import time
 import numpy as np
 from scipy.signal import convolve2d
-from task import FOLDERS, PATH_epigenomics, LOOPS, PATH_OE
+from config import FOLDERS, PATH_epigenomics, LOOPS, PATH_OE
 
 
 def positional_encoding(length=1250, position_dim=8):
@@ -158,6 +158,7 @@ def load_matrices(
         for idx in ch_coord:
             (ch, st, ed) = ch_coord[idx]
             norm_path = f'{PATH_OE}/{cell}_{resolution}bp_{idx}.npy'
+            norm_array = np.load(norm_path)
             norm_array[norm_array < avg_min] = avg_min
             print(f'   ... {ch}')
             for line in open(f'{FOLDERS[cell]}/{ch}_{resolution}bp.txt'):

@@ -16,21 +16,6 @@ HUMAN_CHR_SIZES = {'chr1': (100000, 248900000), 'chr2': (100000, 242100000), 'ch
                    }
 
 
-# Paths to contact map folders for different cell lines
-FOLDERS = {
-    'H1': '../ExampleData/MicroC/H1',
-    'HCT-116': '../ExampleData/MicroC/HCT-116',
-    'GM12878': '../ExampleData/MicroC/GM12878',
-    'K562': '../ExampleData/MicroC/K562'
-}
-
-# Path to epigenomic feature files
-PATH_epigenomics = '../ExampleData/Epi/'
-
-# Path to OE vectors
-PATH_OE = '../ExampleData/MicroC/OE_vectors'
-
-
 def train_and_evaluate(
         cell_type, epoches=60, batch_size=20, checkpoint_frequency=1,
         max_range=625000, resolution=500, gap=500000

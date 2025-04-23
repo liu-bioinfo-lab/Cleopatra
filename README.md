@@ -99,27 +99,35 @@ Cleopatra uses the same model architecture for both pre-training (Micro-C) and f
 PreTraining/FineTuning
 ├── task.py             # Main training script
 ├── CAESAR_model.py     # Model architecture
+├── config.py           # Configurations (mostly data paths)
 └── data_utils.py       # Data loading and preprocessing
 ```
 
-The main entry point is `task.py`.  
-Before running, update the following parameters:
-
+Before running, update the following parameters in `config.py`:
 - `FOLDERS`: Paths to the contact map files  
 - `PATH_epigenomics`: Paths to the epigenomic feature files  
 - `PATH_OE`: Paths to OE vectors
-- `max_range`: Prediction window (e.g., 625kb for 500bp resolution, 2.5Mb for 2kb resolution)  
-- `resolution`: Either 500 or 2000 (make sure the input files match this)  
-- `gap`: Sampling gap for generating training instances
-- `epoch`, `batch_size`: Training hyperparameters
 - `TRAINING_REGION` (fine-tune only): which RCMC regions are used for training
 - `LOOPS` (fine-tune only, optional): Paths to loops. If given, the model will give higher weights on pre-annotated loops
 
-To begin training, run:
+The main entry point is `task.py`.
+To begin training, run the function `train_and_evaluate()` in `task.py`:
 
-```bash
-python task.py
+```Python
+train_and_evaluate(
+    cell_type='HCT-116',
+    epoches=60, batch_size=10, checkpoint_frequency=10,
+    max_range=625000, resolution=500, gap=500000
+)
 ```
+- `cell_type`: Which cell type to train
+- `epoch`: Number of training epochs
+- `batch_size`: Batch size used during training
+- `checkpoint_frequency`: Frequency (in epochs) to save model checkpoints
+- `max_range`: Prediction window (e.g., 625kb for 500bp resolution, 2.5Mb for 2kb resolution)  
+- `resolution`: Either 500 or 2000 (make sure the input files match this)  
+- `gap`: Sampling gap for generating training instances
+
 
 ---
 

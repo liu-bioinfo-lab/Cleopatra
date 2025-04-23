@@ -1,7 +1,7 @@
 from time import time
 import numpy as np
 from scipy.signal import convolve2d
-from task import FOLDERS, PATH_epigenomics, PATH_OE
+from config import FOLDERS, PATH_epigenomics, PATH_OE
 
 
 def positional_encoding(length=1250, position_dim=8):
