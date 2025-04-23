@@ -18,14 +18,14 @@ HUMAN_CHR_SIZES = {'chr1': (100000, 248900000), 'chr2': (100000, 242100000), 'ch
 
 # Paths to contact map folders for different cell lines
 FOLDERS = {
-    'H1': '/nfs/turbo/umms-drjieliu/proj/4dn/data/microC/hESC/mcool_dump',
-    'HCT-116': '/nfs/turbo/umms-drjieliu/proj/4dn/data/microC/realigned_microc/HCT-116/mcool_dump',
-    'GM12878': '/nfs/turbo/umms-drjieliu/proj/4dn/data/microC/realigned_microc/GM12878/mcool_dump',
-    'K562': '/nfs/turbo/umms-drjieliu/proj/4dn/data/microC/realigned_microc/K562/mcool_dump'
+    'H1': '../ExampleData/MicroC/H1',
+    'HCT-116': '../ExampleData/MicroC/HCT-116',
+    'GM12878': '../ExampleData/MicroC/GM12878',
+    'K562': '../ExampleData/MicroC/K562'
 }
 
 # Path to epigenomic feature files
-PATH_epigenomics = '/scratch/drjieliu_root/drjieliu/fanfeng/CAESAR_temp/training_data'
+PATH_epigenomics = '../ExampleData/Epi/'
 
 # Path to OE vectors
 PATH_OE = '../ExampleData/MicroC/OE_vectors'

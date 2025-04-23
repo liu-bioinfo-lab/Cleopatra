@@ -6,22 +6,22 @@ from CAESAR_model import CAESAR
 
 # Path to contact map files
 FOLDERS = {
-    'H1': '/nfs/turbo/umms-drjieliu/proj/4dn/data/RegionCaptureMicroC/realigned_rcmc/H1/mcool_dump',
-    'HCT-116': '/nfs/turbo/umms-drjieliu/proj/4dn/data/RegionCaptureMicroC/realigned_rcmc/HCT-116/mcool_dump',
-    'GM12878': '/nfs/turbo/umms-drjieliu/proj/4dn/data/RegionCaptureMicroC/realigned_rcmc/GM12878/mcool_dump',
-    'K562': '/nfs/turbo/umms-drjieliu/proj/4dn/data/RegionCaptureMicroC/realigned_rcmc/K562/mcool_dump'
+    'H1': '../ExampleData/RCMC/H1',
+    'HCT-116': '../ExampleData/RCMC/HCT-116',
+    'GM12878': '../ExampleData/RCMC/GM12878',
+    'K562': '../ExampleData/RCMC/K562'
 }
 
 # Path to loop files (to add weights on loops during training)
 LOOPS = {
-    'H1': '/nfs/turbo/umms-drjieliu/usr/temp_Fan/transfer/CAESAR/42_2Mb_model/01_get_data_ready/RCMC_loops/H1.txt',
-    'HCT-116': '/nfs/turbo/umms-drjieliu/usr/temp_Fan/transfer/CAESAR/42_2Mb_model/01_get_data_ready/RCMC_loops/HCT-116.txt',
-    'GM12878': '/nfs/turbo/umms-drjieliu/usr/temp_Fan/transfer/CAESAR/42_2Mb_model/01_get_data_ready/RCMC_loops/GM12878.txt',
-    'K562': '/nfs/turbo/umms-drjieliu/usr/temp_Fan/transfer/CAESAR/42_2Mb_model/01_get_data_ready/RCMC_loops/K562.txt'
+    'H1': '../ExampleData/Structures/Loops/H1.txt',
+    'HCT-116': '../ExampleData/Structures/Loops/HCT-116.txt',
+    'GM12878': '../ExampleData/Structures/Loops/GM12878.txt',
+    'K562': '../ExampleData/Structures/Loops/K562.txt'
 }
 
 # Path to epigenomic feature files
-PATH_epigenomics = '/scratch/drjieliu_root/drjieliu/fanfeng/CAESAR_temp/training_data'
+PATH_epigenomics = '../ExampleData/Epi/'
 
 # Path to pretrained model
 PATH_pretrained_model = './temp_model_60.h5'
