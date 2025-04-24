@@ -6,13 +6,6 @@
 
 Traditional models for predicting chromatin contact maps require large training datasets across many chromosomes, which are often impractical to generate with experimental RCMC data. To overcome this limitation, Cleopatra uses a two-stage training strategy: it is first pre-trained on whole-genome Micro-C data, and then fine-tuned on ultra-deep RCMC data. This strategy enables Cleopatra to transfer knowledge from abundant but lower-resolution data to accurately impute high-resolution genome-wide contact maps.
 
-![Model overview](./Cleopatra.png)  
-<sub>Figure: Cleopatra imputes ultra-high-resolution contact maps for four human cell types.  
-(a) Overview of the Cleopatra method. Epigenomic signals for each cell type are pre-trained on Micro-C maps before fine-tuning with RCMC.  
-(b) Cleopatra predictions for a representative holdout region in four cell types at 2kb (left) and 500bp (right) resolutions. Insulation scores from RCMC and Cleopatra are shown below.  
-(c–d) Pearson correlation by genomic distance of 500bp or 2kb Cleopatra models compared to RCMC in three holdout regions.  
-(e–f) Loop strength correlation between RCMC and Cleopatra models at 500bp or 2kb resolution, using loops called in RCMC. *r* represents Pearson correlation per cell type.</sub>
-
 ---
 
 ## Requirements
