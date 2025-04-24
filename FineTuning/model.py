@@ -92,7 +92,7 @@ def combined_loss(y_true, y_pred):
     return mse_loss + beta * ins_loss
 
 
-def CAESAR(nBins=4000, nMarks=14, verbose=1, lr=0.0001, positional_dim=8,
+def Cleopatra(nBins=4000, nMarks=14, verbose=1, lr=0.0001, positional_dim=8,
            n_distance=800, distance_dim=8,
            n_SA_layers=2, SA_dim=96, SA_head=8,
            n_Conv_layers=3, Conv_dim=64, Conv_kernel=21,
@@ -180,7 +180,7 @@ def CAESAR(nBins=4000, nMarks=14, verbose=1, lr=0.0001, positional_dim=8,
 
 
 if __name__ == '__main__':
-    CAESAR(nBins=1000, verbose=1)
+    Cleopatra(nBins=1000, verbose=1)
 
 
 

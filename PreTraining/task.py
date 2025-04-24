@@ -1,7 +1,7 @@
 from os import path
 import time
 from data_utils import training_data_generator
-from CAESAR_model import CAESAR
+from model import Cleopatra
 
 
 # Exclude the beginning and end regions which are noisy
@@ -51,7 +51,7 @@ def train_and_evaluate(
                  'RAD21', 'H2AFZ', 'phastCons']
 
     # Build current model
-    model = CAESAR(
+    model = Cleopatra(
         nMarks=len(epi_names), lr=0.001,
         n_distance=max_range // resolution, nBins=max_range // resolution
     )

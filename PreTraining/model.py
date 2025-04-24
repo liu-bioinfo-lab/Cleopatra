@@ -37,13 +37,13 @@ class RepeatVector3D(Layer):
         return config
 
 
-def CAESAR(nBins=4000, nMarks=14, verbose=1, lr=1e-4,
+def Cleopatra(nBins=4000, nMarks=14, verbose=1, lr=1e-4,
            positional_dim=8, n_distance=800, distance_dim=8,
            n_SA_layers=2, SA_dim=96, SA_head=8,
            n_Conv_layers=3, Conv_dim=64, Conv_kernel=21,
            n_final_layers=3, final_layer_dim=24, final_layer_kernel=3):
     """
-    CAESAR: A custom deep learning model combining Conv1D, self-attention, and pairwise interaction modeling.
+    Cleopatra: A custom deep learning model combining Conv1D, self-attention, and pairwise interaction modeling.
 
     Args:
         nBins: Number of bins or sequence positions
@@ -133,4 +133,4 @@ def CAESAR(nBins=4000, nMarks=14, verbose=1, lr=1e-4,
 
 if __name__ == '__main__':
     # Example instantiation
-    CAESAR(nBins=1000, verbose=1)
+    Cleopatra(nBins=1000, verbose=1)

@@ -91,7 +91,7 @@ Cleopatra uses the same model architecture for both pre-training (Micro-C) and f
 ```
 PreTraining/FineTuning
 ├── task.py             # Main training script
-├── CAESAR_model.py     # Model architecture
+├── model.py            # Model architecture
 ├── config.py           # Configurations (mostly data paths)
 └── data_utils.py       # Data loading and preprocessing
 ```
