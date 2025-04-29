@@ -128,6 +128,14 @@ train_and_evaluate(
 - `resolution`: Either 500 or 2000 (make sure the input files match this)  
 - `gap`: Sampling gap for generating training instances
 
+### Additional information
+Since Micro-C/RCMC contact maps are loaded into RAM, training Cleopatra requires large memory on the machine (~200 Gb).
+The model takes about 12 hours to train on a NVIDIA A100 GPU.
+
+The output is the Cleopatra model stored in `.h5` format.
+Example output models (HCT-116, 500 bp resolution) are provided in the code folders.
+
+The genome-wide predictions are too big to be attached in GitHub, please refer to `Data Availability` section of the manuscript for download link.
 
 ---
 
