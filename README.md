@@ -10,13 +10,20 @@ Traditional models for predicting chromatin contact maps require large training 
 
 ## Requirements
 
+Cleopatra is based on Python.
+To allow flexibility, users do not need to install Cleopatra as a package.
+The code for model training can be directly downloaded with the following command.
+```commandline
+git clone https://github.com/liu-bioinfo-lab/Cleopatra.git
+```
+
 Ensure the following Python environment is set up before running Cleopatra:
 
 - Python 3.8.8  
 - TensorFlow 2.4.1  
 - NumPy 1.19.2  
 - pandas 1.2.3  
-- SciPy 1.6.1  
+- SciPy 1.6.1
 
 ---
 
