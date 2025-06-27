@@ -37,100 +37,88 @@ class RepeatVector3D(Layer):
         return config
 
 
-def Cleopatra(nBins=4000, nMarks=14, verbose=1, lr=1e-4,
-           positional_dim=8, n_distance=800, distance_dim=8,
+def Cleopatra(nBins=4000, nMarks=14, verbose=1, lr=0.0001, positional_dim=8,
+           n_distance=800, distance_dim=8,
            n_SA_layers=2, SA_dim=96, SA_head=8,
            n_Conv_layers=3, Conv_dim=64, Conv_kernel=21,
-           n_final_layers=3, final_layer_dim=24, final_layer_kernel=3):
-    """
-    Cleopatra: A custom deep learning model combining Conv1D, self-attention, and pairwise interaction modeling.
-
-    Args:
-        nBins: Number of bins or sequence positions
-        nMarks: Number of epigenetic marks per bin
-        verbose: Whether to print model summary and weights
-        lr: Learning rate
-        positional_dim: Positional encoding dimension
-        n_distance: Max distance for embedding
-        distance_dim: Embedding size for distances
-        n_SA_layers: Number of self-attention layers
-        SA_dim: Attention dimension
-        SA_head: Number of attention heads
-        n_Conv_layers: Number of 1D conv layers
-        Conv_dim: Filter size of Conv1D layers
-        Conv_kernel: Kernel size of Conv1D layers
-        n_final_layers: Number of final 2D Conv layers
-        final_layer_dim: Filter size of 2D Conv layers
-        final_layer_kernel: Kernel size of 2D Conv layers
-
-    Returns:
-        A compiled Keras model
-    """
-    assert SA_dim % SA_head == 0, "SA_dim must be divisible by SA_head"
-    assert n_SA_layers > 0 and n_Conv_layers > 0 and n_final_layers > 0
-
+           n_final_layers=3, final_layer_dim=24, final_layer_kernel=3,
+           ):
+    assert SA_dim % SA_head == 0
+    assert n_SA_layers > 0
+    assert n_Conv_layers > 0
+    assert n_final_layers > 0
     # Inputs
     epi_inp = Input(shape=(nBins, nMarks), name='Inp_epi')
     positional = Input(shape=(nBins, positional_dim), name='Inp_pos')
     distance0 = Input(shape=(nBins, nBins), name='Inp_dis')
     weights = Input(shape=(nBins, nBins), name='Inp_w')
 
-    # Positional + epigenetic concatenation
-    epi_data = Concatenate(axis=-1, name='Concat_epi_pos')([epi_inp, positional])
+    distance = Reshape([nBins * nBins], name='Reshape_dis1')(distance0)
+    epi_data = Concatenate(axis=-1, name='conc')([epi_inp, positional])
 
-    # 1D Convolutional layers
-    x = BatchNormalization(name='Conv_0_BN')(Dense(Conv_dim, activation='relu', name='Conv_0')(epi_data))
+    # Conv1D layers
+    conv_layers = [
+        epi_data,
+        BatchNormalization(name=f'Conv_0_BN')(
+            Dense(Conv_dim, activation='relu', name=f'Conv_0')(epi_data)
+        )
+    ]
     for i in range(n_Conv_layers):
-        x = BatchNormalization(name=f'Conv_{i+1}_BN')(
-            Conv1D(Conv_dim, Conv_kernel, padding='same', activation='relu', name=f'Conv_{i+1}')(x)
+        conv_layers.append(
+            BatchNormalization(name=f'Conv_{i + 1}_BN')(
+                Conv1D(filters=Conv_dim, kernel_size=Conv_kernel, padding='same',
+                       name=f'Conv_{i + 1}', activation='relu')(conv_layers[-1])
+            )
         )
 
-    # Multi-head self-attention layers
+    # self-attention Layers
     for i in range(n_SA_layers):
-        x = BatchNormalization(name=f'SA_{i+1}_BN')(
-            MultiHeadAttention(num_heads=SA_head, key_dim=SA_dim // SA_head, name=f'SA_{i+1}')(x, x)
+        conv_layers.append(
+            BatchNormalization(name=f'SA_{i + 1}_BN')(
+                MultiHeadAttention(num_heads=SA_head, key_dim=SA_dim // SA_head,
+                                   name=f'SA_{i + 1}')(conv_layers[-1], conv_layers[-1])
+            )
         )
 
-    # Pairwise interaction
-    p1 = Conv1D(final_layer_dim, 1, padding='same', activation='relu', name='Pair1')(x)
-    p2 = Conv1D(final_layer_dim, 1, padding='same', activation='relu', name='Pair2')(x)
-    p1_stack = RepeatVector3D(nBins, name='Repeat_P1')(p1)
-    p2_stack = Permute([2, 1, 3], name='Permute_P2')(
-        RepeatVector3D(nBins, name='Repeat_P2')(p2)
-    )
+    # Conc layers
+    conc_output = Concatenate(axis=-1, name=f'Conc')(conv_layers)
 
-    # Distance embedding
-    distance_flat = Reshape([nBins * nBins], name='Reshape_dis1')(distance0)
-    distance_emb = Embedding(n_distance + 1, distance_dim, name='Distance_emb')(distance_flat)
-    distance = Reshape([nBins, nBins, distance_dim], name='Reshape_dis2')(distance_emb)
+    # Pairwise combination
+    p1 = Conv1D(filters=final_layer_dim, kernel_size=1, padding='same',
+                activation='relu', name=f'Pair1')(conc_output)
+    p2 = Conv1D(filters=final_layer_dim, kernel_size=1, padding='same',
+                activation='relu', name=f'Pair2')(conc_output)
+    p1_stack = RepeatVector3D(nBins, name=f'Pair1_stack')(p1)
+    p2_stack = RepeatVector3D(nBins, name=f'Pair2_stack')(p2)
+    p2_stack_T = Permute(dims=[2, 1, 3], name=f'Pair2_stack_T')(p2_stack)
 
-    # Combine pairwise embeddings and distances
-    added = Add(name='Add_Pairs')([p1_stack, p2_stack])
-    x2 = Concatenate(axis=-1, name='Concat_Pairs_Dist')([added, distance])
+    distance = Embedding(n_distance+1, distance_dim, name='Distance_emb')(distance)
+    distance = Reshape([nBins, nBins, distance_dim], name='Reshape_dis2')(distance)
 
-    # Final 2D convolutional layers
+    adds = Add(name='Pairs_combine')([p1_stack, p2_stack_T])  # 1250 * 1250 * 96
+
+    final_layers = [
+        Concatenate(axis=-1, name=f'Emb_dis')([adds, distance])
+    ]
     for i in range(n_final_layers - 1):
-        x2 = BatchNormalization(name=f'FinalConv_{i}_BN')(
-            Conv2D(final_layer_dim, final_layer_kernel, padding='same', activation='relu', name=f'FinalConv_{i}')(x2)
+        final_layers.append(
+            BatchNormalization(name=f'final_{i}_BN')(
+                Conv2D(filters=final_layer_dim, kernel_size=final_layer_kernel, padding='same',
+                       activation='relu', name=f'final_{i}')(final_layers[-1])
+            )
         )
-    x2 = Conv2D(1, 1, padding='same', activation='relu', name=f'FinalConv_{n_final_layers - 1}')(x2)
+    outputs = Conv2D(filters=1, kernel_size=1, padding='same',
+                     name=f'final_{n_final_layers - 1}', activation='relu')(final_layers[-1])
+    outputs = Reshape([nBins, nBins], name='FinalReshape')(outputs)
+    outputs = Multiply(name='FinalWeights')([outputs, weights])
 
-    # Final reshape and element-wise multiplication with weights
-    outputs = Reshape([nBins, nBins], name='OutputReshape')(x2)
-    outputs = Multiply(name='ApplyWeights')([outputs, weights])
-
-    # Build model
-    model = Model(inputs=[epi_inp, positional, distance0, weights], outputs=outputs)
-    model.compile(optimizer=Adam(learning_rate=lr), loss='mse')
+    m = Model(inputs=[epi_inp, positional, distance0, weights], outputs=outputs)
+    m.compile(optimizer=Adam(lr=lr), loss='mse')
 
     if verbose:
-        model.summary()
-        for name, weight in zip([w.name for l in model.layers for w in l.weights], model.get_weights()):
+        m.summary()
+        names = [weight.name for layer in m.layers for weight in layer.weights]
+        weights = m.get_weights()
+        for name, weight in zip(names, weights):
             print(name, weight.shape)
-
-    return model
-
-
-if __name__ == '__main__':
-    # Example instantiation
-    Cleopatra(nBins=1000, verbose=1)
+    return m
