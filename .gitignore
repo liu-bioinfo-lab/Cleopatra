@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Training / inference outputs
+pretrain_*.pt
+finetune_*.pt
+pretrain_figures/
+finetune_figures/
+evaluation*/
+inference*/
+log*.txt
+slurm-*.out
+strata_*/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp

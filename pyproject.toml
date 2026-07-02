@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cleopatra"
+version = "1.0.0"
+description = "Attention-based prediction of ultra-high-resolution 3D genome contact maps from epigenomic inputs."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+authors = [
+    { name = "Fan Feng", email = "fanfeng@umich.edu" },
+    { name = "Clarice K.Y. Hong" },
+    { name = "Varshini Ramanathan" },
+    { name = "Jie Liu" },
+    { name = "Anders S. Hansen" },
+]
+keywords = ["3D genome", "Micro-C", "RCMC", "deep learning", "PyTorch", "attention"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "torch>=2.0",
+    "numpy>=1.21",
+    "scipy>=1.7",
+    "pandas>=1.3",
+    "scikit-image>=0.19",
+    "matplotlib>=3.5",
+    "PyYAML>=5.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/liu-bioinfo-lab/Cleopatra"
+Repository = "https://github.com/liu-bioinfo-lab/Cleopatra"
+
+[tool.setuptools.packages.find]
+include = ["cleopatra*"]

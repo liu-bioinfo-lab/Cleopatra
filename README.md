@@ -1,154 +1,226 @@
 # Cleopatra
 
+**Cleopatra** is an attention-based deep-learning model that predicts
+ultra-high-resolution 3D genome contact maps (500 bp and 2 kb bin sizes)
+from one-dimensional epigenomic inputs. It is trained with a two-stage
+strategy: **pre-train on genome-wide Micro-C, then fine-tune on
+Region-Capture Micro-C (RCMC)**.
+
+This repository contains the reference PyTorch implementation, the
+canonical GM12878 500 bp checkpoint, and unified `train.py` /
+`evaluate.py` / `inference.py` entry points driven by YAML configs.
+
+If you use Cleopatra, please cite:
+
+> Hong C.K.Y., Feng F., Ramanathan V., Liu J., Hansen A.S.
+> *Cleopatra: attention-based prediction of ultra-high-resolution 3D
+> genome architecture from epigenomic inputs.* (2026)
+
 ---
 
-**Cleopatra** is a deep learning framework designed for the unique characteristics of ultra-deep **RCMC (Region-Capture Micro-C)** data. By leveraging a comprehensive panel of one-dimensional (1D) genomic features, Cleopatra predicts high-resolution 3D genome architecture.
+## Repository layout
 
-Traditional models for predicting chromatin contact maps require large training datasets across many chromosomes, which are often impractical to generate with experimental RCMC data. To overcome this limitation, Cleopatra uses a two-stage training strategy: it is first pre-trained on whole-genome Micro-C data, and then fine-tuned on ultra-deep RCMC data. This strategy enables Cleopatra to transfer knowledge from abundant but lower-resolution data to accurately impute high-resolution genome-wide contact maps.
+```
+cleopatra/                    # Python package
+  model.py                    # Cleopatra model (DenseNet-style + SA + RBF distance encoding)
+  loader.py                   # Training / evaluation / inference data generators
+  data.py                     # Contact map + epigenomics loading, weight construction
+  metrics.py                  # Pearson / SSIM / PSNR / SCC / loop / insulation metrics
+  visualize.py                # Contact-map + epigenomics track plots
+  regions.py                  # Chromosome & RCMC region catalogs
+configs/                      # YAML configs (one per cell type × resolution)
+  gm12878_500bp.yaml          # canonical published config
+  gm12878_2000bp.yaml
+weights/                      # pre-trained checkpoints (see weights/README.md)
+scripts/slurm_train.sh        # example SLURM launcher
+train.py                      # unified PT + FT entry point
+evaluate.py                   # hold-out region evaluation
+inference.py                  # genome-wide prediction
+ExampleData/                  # small example files showing the expected data layout
+requirements.txt
+```
 
 ---
 
 ## Requirements
 
-Cleopatra is based on Python.
-To allow flexibility, users do not need to install Cleopatra as a package.
-The code for model training can be directly downloaded with the following command.
-```commandline
+Python 3.9+ with:
+
+- PyTorch ≥ 2.0 (CUDA build recommended)
+- NumPy, SciPy, pandas, PyYAML, scikit-image, matplotlib
+
+Install:
+
+```bash
 git clone https://github.com/liu-bioinfo-lab/Cleopatra.git
+cd Cleopatra
+pip install -e .            # installs the `cleopatra` package and deps
 ```
 
-Ensure the following Python environment is set up before running Cleopatra:
+(A plain `pip install -r requirements.txt` also works if you plan to run
+the scripts from the repo root without installing the package.)
 
-- Python 3.8.8  
-- TensorFlow 2.4.1  
-- NumPy 1.19.2  
-- pandas 1.2.3  
-- SciPy 1.6.1
+Training a full 500 bp / 200-epoch fine-tune uses ~64 GB RAM (contact
+maps are held in memory) and ~12 h on a single V100 or A100.
 
 ---
 
-## Data Preparation
+## Quick start
 
-Cleopatra accepts **19 one-dimensional (1D) genomic features** as input, including chromatin accessibility, histone modifications, and transcription factor ChIP-seq data.
-The output is Micro-C contact map (pre-training) or RCMC contact map (fine-tuning).
+```bash
+# Pre-train + fine-tune from a single config
+python train.py --config configs/gm12878_500bp.yaml --stage both
 
-The folders for training data should follow the structure below.
-**Examples are also under the `/ExampleData` folder.**
+# Only fine-tune, reusing an existing PT checkpoint
+python train.py --config configs/gm12878_500bp.yaml --stage finetune \
+                --pretrain-checkpoint pretrain_60.pt
 
-```
-ExampleData
-├── MicroC
-│   ├── HCT-116
-│   │   ├── chr1_2000bp.txt
-│   │   ├── chr1_500bp.txt
-│   │   ├── ...
-│   │   └── chrX_500bp.txt
-│   ├── GM12878
-│   │   ├── chr1_2000bp.txt
-│   │   └── ...
-│   ├── ...
-│   └── OE_vectors
-│       ├── HCT-116_500bp.npy
-│       ├── ...
-│       └── GM12878_2000bp.npy
-├── RCMC
-│   ├── HCT-116
-│   │   ├── chr1_2000bp.txt
-│   │   ├── ...
-│   ├── GM12878
-│   │   ├── chr1_2000bp.txt
-│   │   └── ...
-│   ├── ...
-│   └── OE_vectors
-│       ├── HCT-116_500bp_0.npy
-│       ├── ...
-│       └── GM12878_2000bp_13.npy
-└── Epigenomics
-    ├── HCT-116
-    │   ├── chr1
-    │   │   ├── chr1_2000bp_H3K4me1.npy
-    │   │   ├── chr1_500bp_RAD21.npy
-    │   │   └── ...
-    │   ├── chr2
-    │   │   └── ...
-    │   └── chrX
-    │       └── ...
-    └── GM12878
-        ├── chr1
-        └── ...
+# Hold-out RCMC evaluation
+python evaluate.py --config configs/gm12878_500bp.yaml \
+                   --checkpoint weights/gm12878_500bp_finetune.pt \
+                   --output-dir evaluation_GM12878
+
+# Genome-wide inference
+python inference.py --config configs/gm12878_500bp.yaml \
+                    --checkpoint weights/gm12878_500bp_finetune.pt \
+                    --output-dir inference_GM12878
 ```
 
-- Each contact file (e.g., `chr1_2000bp.txt`) should be generated using the `dump` function of **cooler**:
-  ```bash
-  cooler dump -r "chr${chr}" -b --join -o "${OUTPUT_FILE}" "${COOLER_FILE}"
-  ```
+If `--stage both` finds an existing `pretrain_60.pt` next to `train.py`,
+it skips the (expensive) pre-training stage and jumps straight to
+fine-tuning. This is the typical iteration workflow.
 
-- The OE (observed/expected) vectors store the average contact values for each contact distance, which is used for OE normalization.
-  - For Micro-C, each cell type has only one "genome-wide" OE vector at a certain resolution (`{cell_type}_{resolution}bp.npy`)
-  - For RCMC, due to diversities of regions, each region has a different OE vector (`{cell_type}_{resolution}bp_{region_index}.npy`)
-
-- Each epigenomic track is a `.npy` file generated using the **pyBigWig** Python package. Refer to the supplementary table of the paper for the download link of the ENCODE bigWig files.
+Pass `--seed <int>` to any `train.py` run for a deterministic
+Python/NumPy/Torch/cuDNN seed. Omit it for stochastic runs (the
+manuscript models were trained without a fixed seed).
 
 ---
 
-## Model Training
+## Data preparation
 
-Cleopatra uses the same model architecture for both pre-training (Micro-C) and fine-tuning (RCMC). The main components are:
+Cleopatra accepts **19 one-dimensional genomic tracks** per cell type
+(chromatin accessibility, histone marks, transcription-factor ChIP-seq,
+and phastCons conservation — see the config file for the exact list).
+Contact-map targets are Micro-C for pre-training and RCMC for
+fine-tuning.
+
+> **Note on `ExampleData/`.** The bundled `ExampleData/` directory is a
+> **schema demo**, not a runnable dataset: it contains one loop file
+> per cell line, GM12878 OE vectors, one HCT-116 contact-map dump and
+> one HCT-116 H3K27ac track. Running the shipped config out of the box
+> will fail with missing files. Point `paths.*` at a full data root
+> (see Zenodo IDs below) before running.
+
+Expected on-disk layout (matches the schema shown in `ExampleData/`):
 
 ```
-PreTraining/FineTuning
-├── task.py             # Main training script
-├── model.py            # Model architecture
-├── config.py           # Configurations (mostly data paths)
-└── data_utils.py       # Data loading and preprocessing
+<data_root>/
+├── MicroC/
+│   ├── <cell>/<chr>_<res>bp.txt          # cooler dump output
+│   └── OE_vectors/<cell>_<res>bp.npy     # genome-wide OE vector
+├── RCMC/
+│   ├── <cell>/<chr>_<res>bp.txt
+│   └── OE_vectors/<cell>_<res>bp_<region_idx>.npy
+├── Epigenomics/
+│   └── <cell>/<chr>/<chr>_<res>bp_<mark>.npy
+└── Structures/
+    └── Loops/all_rcmc_annotated_loops.tsv
 ```
 
-Before running, update the following parameters in `config.py`:
-- `FOLDERS`: Paths to the contact map files  
-- `PATH_epigenomics`: Paths to the epigenomic feature files  
-- `PATH_OE`: Paths to OE vectors
-- `TRAINING_REGION` (fine-tune only): which RCMC regions are used for training
-- `LOOPS` (fine-tune only, optional): Paths to loops. If given, the model will give higher weights on pre-annotated loops
+### Contact-map files
 
-The main entry point is `task.py`.
-To begin training, run the function `train_and_evaluate()` in `task.py`:
+Each contact-map text file is produced by
+[`cooler dump`](https://cooler.readthedocs.io/en/latest/cli.html#cooler-dump):
 
-```Python
-train_and_evaluate(
-    cell_type='HCT-116',
-    epoches=60, batch_size=10, checkpoint_frequency=10,
-    max_range=625000, resolution=500, gap=500000
-)
+```bash
+cooler dump -r "chr${CHR}" -b --join -o "${OUT_TXT}" "${MCOOL_FILE}::/resolutions/${RES}"
 ```
-- `cell_type`: Which cell type to train
-- `epoch`: Number of training epochs
-- `batch_size`: Batch size used during training
-- `checkpoint_frequency`: Frequency (in epochs) to save model checkpoints
-- `max_range`: Prediction window (e.g., 625kb for 500bp resolution, 2.5Mb for 2kb resolution)  
-- `resolution`: Either 500 or 2000 (make sure the input files match this)  
-- `gap`: Sampling gap for generating training instances
 
-### Additional information
-Since Micro-C/RCMC contact maps are loaded into RAM, training Cleopatra requires large memory on the machine (~200 Gb).
-The model takes about 12 hours to train on a NVIDIA A100 GPU.
+### OE vectors
 
-The output is the Cleopatra model stored in `.h5` format.
-Example output models (HCT-116, 500 bp resolution) are provided in the code folders.
+Store the average contact frequency at each genomic separation, used for
+observed / expected normalisation.
 
-The genome-wide predictions are too big to be attached in GitHub, please refer to `Data Availability` section of the manuscript for download link.
+- **Micro-C** — one genome-wide vector per (cell type, resolution):
+  `<cell>_<res>bp.npy`.
+- **RCMC** — one vector per (cell type, resolution, RCMC region):
+  `<cell>_<res>bp_<region_idx>.npy`. Region indices match
+  `cleopatra/regions.py::RCMC_REGIONS`.
+
+### Epigenomic tracks
+
+Each track is a per-chromosome `.npy` array generated from a bigWig via
+[`pyBigWig`](https://github.com/deeptools/pyBigWig). Refer to the
+manuscript's supplementary table for ENCODE bigWig accession IDs.
+
+### Loop annotations (optional)
+
+`paths.loops_dir` points at a directory containing one file per cell
+line, `<cell>.txt`. Each file is headerless and whitespace-separated
+with six columns:
+
+```
+chrom1  start1  end1  chrom2  start2  end2
+```
+
+Chromosome names may be given bare (`5`) or with a `chr` prefix
+(`chr5`); a `chr` prefix is added if missing. Loop annotations are
+used when `finetune.loop_weight: true` to upweight loop pixels during
+training, and by `evaluate.py` when computing loop-intensity Pearson.
+Both usages are optional — with `loops_dir` unset, loop weights are
+skipped in FT and loop metrics are omitted from evaluation.
 
 ---
 
-## Citation
+## Configuration
 
-If you use Cleopatra in your research, please cite:
+Every training / inference run is driven by a YAML config. Copy
+`configs/gm12878_500bp.yaml`, edit the `paths:` block to point at your
+data root, and change `data.cell_lines` / `data.resolution` for other
+targets. All model hyperparameters are exposed in the `model:` block so
+that new ablations can be run without touching Python.
 
-```
-[Insert preprint here]
-```
+Key knobs:
+
+| Section         | Field                        | Meaning                                       |
+| ---             | ---                          | ---                                           |
+| `data`          | `resolution`                 | 500 or 2000 bp                                |
+| `data`          | `cell_lines`                 | One or more cell-type keys                    |
+| `model`         | `positional_dim`, `distance_dim` | Positional / distance embedding sizes     |
+| `model`         | `SA_dim`, `SA_head`          | Self-attention channel width and head count   |
+| `model`         | `rbf_width_factor`           | RBF kernel width in units of centre spacing   |
+| `pretrain`/`finetune` | `n_epochs`, `learning_rate`, `gap` | Stage-specific training schedule      |
+| `finetune`      | `training_regions`           | RCMC region indices used for training (holdouts: 3, 5, 10) |
+| `finetune`      | `loop_weight`                | Enable loop-pixel upweighting (requires `paths.loops_tsv`) |
+| `finetune`      | `freeze_distance_embedding`  | Freeze RBF projection during FT (canonical: true)          |
+
+---
+
+## Pre-trained model
+
+`weights/gm12878_500bp_finetune.pt` is the canonical GM12878 500 bp
+Cleopatra checkpoint (see `weights/README.md` for load code).
+
+Additional cell-type / resolution checkpoints and the full set of
+genome-wide predictions are hosted on Zenodo:
+
+- Predictions: **10.5281/zenodo.15299993**
+- Source RCMC / Micro-C data: **10.5281/zenodo.15303879**
+
+Interactive contact-map visualisations for all four cell lines are also
+available via HiGlass (see the manuscript).
+
+---
+
+## Repositories
+
+- Model code: <https://github.com/liu-bioinfo-lab/Cleopatra>
+- Analysis code (figures & downstream): <https://github.com/ahansenlab/cleopatra_analysis_code>
+- CHIRON loop caller: <https://github.com/ahansenlab/chiron>
 
 ---
 
 ## Contact
 
-For questions, issues, or contributions, feel free to open an issue or email `fanfeng@umich.edu`!
+For issues or contributions, please open a GitHub issue or email
+`fanfeng@umich.edu`.
