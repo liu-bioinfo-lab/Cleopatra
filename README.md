@@ -13,8 +13,8 @@ canonical GM12878 500 bp checkpoint, and unified `train.py` /
 If you use Cleopatra, please cite:
 
 > Hong C.K.Y., Feng F., Ramanathan V., Liu J., Hansen A.S.
-> *Cleopatra: attention-based prediction of ultra-high-resolution 3D
-> genome architecture from epigenomic inputs.* (2026)
+> *Genome structure mapping with high-resolution 3D genomics and deep
+> learning.* (2026)
 
 ---
 
