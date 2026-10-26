@@ -211,6 +211,7 @@ def finetune(cfg, args, pretrain_checkpoint):
         n_epoches=stage_cfg['n_epochs'], batch_size=cfg['batch_size'],
         distance_weight=stage_cfg.get('distance_weight', True),
         loop=stage_cfg.get('loop_weight', True),
+        loop_mode=stage_cfg.get('loop_mode', 'compound'),
         distance_weight_rule=stage_cfg.get('distance_weight_rule'),
         smooth=stage_cfg.get('smooth_inputs', True),
     )

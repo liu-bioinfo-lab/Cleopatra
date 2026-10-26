@@ -24,3 +24,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Training data built by scripts/data_prep/
+data_root/

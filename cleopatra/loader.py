@@ -43,7 +43,7 @@ def training_data_generator(
     paths,
     max_range=1000000, resolution=500, n_distance=1250, gap=1000000,
     pos_enc_dim=8, n_epoches=100, batch_size=20,
-    distance_weight=False, loop=False,
+    distance_weight=False, loop=False, loop_mode='compound',
     distance_weight_rule=None, smooth=True, shuffle=True,
 ):
     """Yield ``(epoch, batch_idx, (epis, pos, dist, weights), targets, keys)``.
@@ -115,7 +115,7 @@ def training_data_generator(
                 pos = int(pos)
                 epis[i] = epi_features[cell][ch][pos // resolution: pos // resolution + size, :]
                 info = weight_locs.get(key, {})
-                weights[i] = load_weight(info, weight_mat)
+                weights[i] = load_weight(info, weight_mat, loop_mode=loop_mode)
 
             yield _epoch, _batch, (epis, pos_encoding, distance, weights), micros * weights, keys
 

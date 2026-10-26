@@ -35,20 +35,22 @@ data:
 # See the README for the expected on-disk convention.
 # ----------------------------------------------------------------------
 paths:
-  epi_root:       ExampleData/Epigenomics
+  # Layout written by scripts/data_prep/prepare_all.sh data_root
+  # (see README, "Reproducing the training data").
+  epi_root:       data_root/Epigenomics
   # For pretrain: contact_root=MicroC, oe_root=MicroC/OE_vectors
   # For finetune: contact_root=RCMC,  oe_root=RCMC/OE_vectors
   # The active pair is chosen automatically by --stage.
   # (Two entries kept so users can point PT/FT at different roots if needed.)
-  pretrain_contact_root:  ExampleData/MicroC
-  pretrain_oe_root:       ExampleData/MicroC/OE_vectors
-  finetune_contact_root:  ExampleData/RCMC
-  finetune_oe_root:       ExampleData/RCMC/OE_vectors
+  pretrain_contact_root:  data_root/MicroC
+  pretrain_oe_root:       data_root/MicroC/OE_vectors
+  finetune_contact_root:  data_root/RCMC
+  finetune_oe_root:       data_root/RCMC/OE_vectors
   # Only required when finetune.loop_weight is True. Each file is
   # <cell>.txt with 6 whitespace-separated columns
   #     chrom1  start1  end1  chrom2  start2  end2
   # (headerless; chr prefix optional).
-  loops_dir:              ExampleData/Structures/Loops
+  loops_dir:              data_root/Loops
 
 # ----------------------------------------------------------------------
 # Architecture -- shared across PT and FT.
@@ -101,6 +103,7 @@ finetune:
   training_regions: [0, 2, 4, 6, 7, 8, 9, 11, 12, 13]
   distance_weight: true
   loop_weight: true
+  loop_mode: compound           # overlapping loop squares multiply (published 500 bp models)
   insulation_loss: false
   insulation_beta: 1.0
   freeze_distance_embedding: true

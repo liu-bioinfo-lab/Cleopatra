@@ -1,0 +1,115 @@
+# K562 Cleopatra config at 500 bp resolution.
+# Mirrors the settings used for the published model
+# (Hong, Feng, Ramanathan et al., 2026).
+
+batch_size: 10
+checkpoint_frequency: 20        # save PT/FT checkpoints every N epochs
+
+data:
+  cell_lines: ['K562']
+  resolution: 500               # 500 or 2000
+  # 19 tracks used by the full model. See the manuscript for source ENCODE / phastCons IDs.
+  epigenetic_inputs:
+    - DNase-seq
+    - H3K4me1
+    - H3K4me2
+    - H3K4me3
+    - H3K9ac
+    - H3K9me3
+    - H3K27ac
+    - H3K27me3
+    - H3K36me3
+    - H3K79me2
+    - H4K20me1
+    - CTCF
+    - EZH2
+    - POLR2A
+    - JUND
+    - REST
+    - RAD21
+    - H2AFZ
+    - phastCons
+
+# ----------------------------------------------------------------------
+# Data paths -- edit these for your local layout.
+# See the README for the expected on-disk convention.
+# ----------------------------------------------------------------------
+paths:
+  # Layout written by scripts/data_prep/prepare_all.sh data_root
+  # (see README, "Reproducing the training data").
+  epi_root:       data_root/Epigenomics
+  # For pretrain: contact_root=MicroC, oe_root=MicroC/OE_vectors
+  # For finetune: contact_root=RCMC,  oe_root=RCMC/OE_vectors
+  # The active pair is chosen automatically by --stage.
+  # (Two entries kept so users can point PT/FT at different roots if needed.)
+  pretrain_contact_root:  data_root/MicroC
+  pretrain_oe_root:       data_root/MicroC/OE_vectors
+  finetune_contact_root:  data_root/RCMC
+  finetune_oe_root:       data_root/RCMC/OE_vectors
+  # Only required when finetune.loop_weight is True. Each file is
+  # <cell>.txt with 6 whitespace-separated columns
+  #     chrom1  start1  end1  chrom2  start2  end2
+  # (headerless; chr prefix optional).
+  loops_dir:              data_root/Loops
+
+# ----------------------------------------------------------------------
+# Architecture -- shared across PT and FT.
+# ----------------------------------------------------------------------
+model:
+  n_bins: 1250                  # window is n_bins * resolution bp
+  positional_dim: 8
+  distance_dim: 8
+  n_Conv_layers: 3
+  Conv_dim: 64
+  Conv_kernel: 21
+  n_SA_layers: 2
+  SA_dim: 96
+  SA_head: 8                    # head_dim = SA_dim // SA_head = 12
+  n_final_layers: 3
+  final_layer_dim: 24
+  final_layer_kernel: 3
+  rbf_n_centers: 64
+  rbf_width_factor: 4.0         # kernel width = 4 * center spacing
+
+# ----------------------------------------------------------------------
+# Pre-training (Micro-C, genome-wide)
+# ----------------------------------------------------------------------
+pretrain:
+  n_epochs: 60
+  learning_rate: 0.001
+  gap: 500000                   # sliding-window step for training samples (bp)
+  smooth_inputs: true
+  exclude_rcmc_regions: true
+  distance_weight: true
+  loop_weight: false
+  insulation_loss: true
+  insulation_beta: 1.0
+  distance_weight_rule:
+    start_loc: 0
+    start_weight: 2
+    end_loc: 300
+    end_weight: 1
+  visualize: false
+
+# ----------------------------------------------------------------------
+# Fine-tuning (RCMC, capture regions)
+# ----------------------------------------------------------------------
+finetune:
+  n_epochs: 200
+  learning_rate: 0.00005        # PT lr / 20
+  gap: 125000
+  smooth_inputs: true
+  # 10 RCMC regions used for training. Regions 3, 5, 10 held out for evaluation.
+  training_regions: [0, 2, 4, 6, 7, 8, 9, 11, 12, 13]
+  distance_weight: true
+  loop_weight: true
+  loop_mode: compound           # overlapping loop squares multiply (published 500 bp models)
+  insulation_loss: false
+  insulation_beta: 1.0
+  freeze_distance_embedding: true
+  distance_weight_rule:
+    start_loc: 0
+    start_weight: 2
+    end_loc: 300
+    end_weight: 1
+  visualize: true

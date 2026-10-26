@@ -126,9 +126,21 @@ def load_weight_locs(mode, resolution, use_loop, all_keys, loops_dir=None, n_bin
     return key2weight_loc
 
 
-def load_weight(weight_info_dict, original_weight, loop_radius=10, loop_weight=2.5):
+def load_weight(weight_info_dict, original_weight, loop_radius=10, loop_weight=2.5, loop_mode='compound'):
+    """loop_mode='compound': overlapping loop squares multiply (500 bp models);
+    loop_mode='fixed': each pixel is up-weighted at most once (2 kb models)."""
     weight = np.copy(original_weight)
     n_bins = original_weight.shape[0]
+    if 'loop' in weight_info_dict and loop_mode == 'fixed':
+        fold = np.ones(original_weight.shape)
+        for (x1, y1) in weight_info_dict['loop']:
+            if (
+                x1 - loop_radius >= 0 and y1 - loop_radius >= 0
+                and x1 + loop_radius < n_bins and y1 + loop_radius < n_bins
+            ):
+                fold[x1 - loop_radius:x1 + loop_radius + 1, y1 - loop_radius:y1 + loop_radius + 1] = loop_weight
+                fold[y1 - loop_radius:y1 + loop_radius + 1, x1 - loop_radius:x1 + loop_radius + 1] = loop_weight
+        return weight * fold
     if 'loop' in weight_info_dict:
         for (x1, y1) in weight_info_dict['loop']:
             if (

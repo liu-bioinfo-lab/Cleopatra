@@ -31,11 +31,14 @@ cleopatra/                    # Python package
 configs/                      # YAML configs (one per cell type × resolution)
   gm12878_500bp.yaml          # canonical published config
   gm12878_2000bp.yaml
+  {h1,hct116,k562}_{500,2000}bp.yaml
 weights/                      # pre-trained checkpoints (see weights/README.md)
 scripts/slurm_train.sh        # example SLURM launcher
 train.py                      # unified PT + FT entry point
 evaluate.py                   # hold-out region evaluation
 inference.py                  # genome-wide prediction
+scripts/data_prep/            # rebuild the training data from Zenodo / ENCODE / UCSC
+data/loops/                   # RCMC loop annotations used for training
 ExampleData/                  # small example files showing the expected data layout
 requirements.txt
 ```
@@ -96,88 +99,105 @@ manuscript models were trained without a fixed seed).
 
 ---
 
-## Data preparation
+## Reproducing the training data
 
-Cleopatra accepts **19 one-dimensional genomic tracks** per cell type
-(chromatin accessibility, histone marks, transcription-factor ChIP-seq,
-and phastCons conservation — see the config file for the exact list).
-Contact-map targets are Micro-C for pre-training and RCMC for
-fine-tuning.
+All training inputs can be rebuilt from public data with the scripts in
+`scripts/data_prep/`. The shipped configs read the resulting `data_root/`
+directory (next to `train.py`):
 
-> **Note on `ExampleData/`.** The bundled `ExampleData/` directory is a
-> **schema demo**, not a runnable dataset: it contains one loop file
-> per cell line, GM12878 OE vectors, one HCT-116 contact-map dump and
-> one HCT-116 H3K27ac track. Running the shipped config out of the box
-> will fail with missing files. Point `paths.*` at a full data root
-> (see Zenodo IDs below) before running.
+```bash
+pip install cooler pyBigWig                       # in addition to requirements.txt
+bash scripts/data_prep/prepare_all.sh data_root 8  # 8 = processes for cooler zoomify
+python train.py --config configs/gm12878_500bp.yaml --stage both
+```
 
-Expected on-disk layout (matches the schema shown in `ExampleData/`):
+`prepare_all.sh` runs six steps, which can also be run one at a time:
+
+| Step | Script | Input | Output in `data_root/` |
+| --- | --- | --- | --- |
+| 0 | `00_download.sh` | Zenodo record [10.5281/zenodo.18623177](https://doi.org/10.5281/zenodo.18623177); bigWigs in `epigenomic_sources.tsv` | `raw/zenodo/`, `raw/bigwig/` |
+| 1 | `01_make_mcool.sh` | Micro-C `.cool` files | `raw/mcool/<cell>_microc.mcool` (500 bp, 2 kb; balanced) |
+| 2 | `02_dump_contacts.sh` | Micro-C and RCMC `.mcool` files | `MicroC/<cell>/<chr>_<res>bp.txt`, `RCMC/<cell>/<chr>_<res>bp.txt` |
+| 3 | `03_oe_vectors.py` | contact dumps | `MicroC/OE_vectors/<cell>_<res>bp.npy`, `RCMC/OE_vectors/<cell>_<res>bp_<region_idx>.npy` |
+| 4 | `04_epigenomics.py` | bigWigs | `Epigenomics/<cell>/<chr>/<chr>_<res>bp_<mark>.npy` |
+| 5 | `05_loops.py` | `data/loops/all_rcmc_annotated_loops.tsv` | `Loops/<cell>.txt` |
+
+Resulting layout:
 
 ```
-<data_root>/
+data_root/
 ├── MicroC/
 │   ├── <cell>/<chr>_<res>bp.txt          # cooler dump output
-│   └── OE_vectors/<cell>_<res>bp.npy     # genome-wide OE vector
+│   └── OE_vectors/<cell>_<res>bp.npy     # genome-wide expected vector
 ├── RCMC/
 │   ├── <cell>/<chr>_<res>bp.txt
 │   └── OE_vectors/<cell>_<res>bp_<region_idx>.npy
 ├── Epigenomics/
 │   └── <cell>/<chr>/<chr>_<res>bp_<mark>.npy
-└── Structures/
-    └── Loops/all_rcmc_annotated_loops.tsv
+└── Loops/<cell>.txt
 ```
 
-### Contact-map files
+Cell-type keys are `GM12878`, `H1`, `HCT-116` and `K562`; chromosomes are
+chr1-22 and chrX; `<res>` is 500 or 2000.
 
-Each contact-map text file is produced by
-[`cooler dump`](https://cooler.readthedocs.io/en/latest/cli.html#cooler-dump):
+### Contact maps (steps 1-2)
 
-```bash
-cooler dump -r "chr${CHR}" -b --join -o "${OUT_TXT}" "${MCOOL_FILE}::/resolutions/${RES}"
-```
+Micro-C is distributed as single-resolution `.cool` files. Step 1 builds the
+500 bp and 2 kb resolutions and balances them with cooler's default iterative
+correction (`cooler zoomify --balance`). The RCMC `.mcool` files already contain
+balanced resolutions and are used as distributed. Step 2 writes one text file
+per chromosome with `cooler dump -r <chr> -b --join` (8 columns: chrom1 start1
+end1 chrom2 start2 end2 count balanced). Training uses the balanced column.
 
-### OE vectors
+### Expected (OE) vectors (step 3)
 
-Store the average contact frequency at each genomic separation, used for
-observed / expected normalisation.
+Each vector holds, for every genomic separation, the mean balanced contact
+frequency over all bin pairs at that separation. Contact maps are divided by
+it (observed / expected) before the log(x + 1) transform.
 
-- **Micro-C** — one genome-wide vector per (cell type, resolution):
-  `<cell>_<res>bp.npy`.
-- **RCMC** — one vector per (cell type, resolution, RCMC region):
-  `<cell>_<res>bp_<region_idx>.npy`. Region indices match
+- **Micro-C**: one genome-wide vector per cell type and resolution (chr1-22,
+  chrX; separations up to 2 Mb at 500 bp, 3 Mb at 2 kb).
+- **RCMC**: one vector per cell type, resolution and capture region, from
+  off-diagonal pairs with both anchors inside the captured interval
+  (separations up to 2 Mb at 500 bp, 5 Mb at 2 kb). The captured intervals are
+  listed in `03_oe_vectors.py`; region indices match
   `cleopatra/regions.py::RCMC_REGIONS`.
 
-### Epigenomic tracks
+### Epigenomic tracks (step 4)
 
-Each track is a per-chromosome `.npy` array generated from a bigWig via
-[`pyBigWig`](https://github.com/deeptools/pyBigWig). Refer to the
-manuscript's supplementary table for ENCODE bigWig accession IDs.
+The 19 inputs are 18 ENCODE4 signal p-value bigWigs per cell type (hg38;
+accessions in `scripts/data_prep/epigenomic_sources.tsv` and the manuscript's
+Data S table) and the UCSC hg38 phastCons100way track. Each bigWig is averaged
+in 500 bp or 2 kb bins with `pyBigWig` (empty bins = 0). At 2 kb, every track
+except phastCons is then scaled so that its genome-wide total equals that of
+GM12878; the published 500 bp models were trained on unscaled tracks, and the
+script reproduces both (`--scale-resolutions` changes this). The log(x + 1)
+transform and the cap at 6 are applied when the data are loaded for training.
 
-### Loop annotations (optional)
+### Loop annotations (step 5)
 
-`paths.loops_dir` points at a directory containing one file per cell
-line, `<cell>.txt`. Each file is headerless and whitespace-separated
-with six columns:
+`data/loops/all_rcmc_annotated_loops.tsv` is the RCMC loop set of the
+manuscript (manual annotations and CHIRON calls; Data S table). Step 5 splits
+it into one headerless file per cell type with six columns
+(`chrom1 start1 end1 chrom2 start2 end2`). Loops up-weight the fine-tuning
+loss around loop pixels (`finetune.loop_weight`, `finetune.loop_mode`) and are
+used by `evaluate.py` for loop-strength correlations.
 
-```
-chrom1  start1  end1  chrom2  start2  end2
-```
+### `ExampleData/`
 
-Chromosome names may be given bare (`5`) or with a `chr` prefix
-(`chr5`); a `chr` prefix is added if missing. Loop annotations are
-used when `finetune.loop_weight: true` to upweight loop pixels during
-training, and by `evaluate.py` when computing loop-intensity Pearson.
-Both usages are optional — with `loops_dir` unset, loop weights are
-skipped in FT and loop metrics are omitted from evaluation.
+`ExampleData/` shows the file formats on a few small files (it is not a
+complete dataset); `ExampleData/Structures/Loops/` contains the full loop
+files written by step 5.
 
 ---
 
 ## Configuration
 
-Every training / inference run is driven by a YAML config. Copy
-`configs/gm12878_500bp.yaml`, edit the `paths:` block to point at your
-data root, and change `data.cell_lines` / `data.resolution` for other
-targets. All model hyperparameters are exposed in the `model:` block so
+Every training / inference run is driven by a YAML config. `configs/`
+has one config per cell type and resolution with the settings of the
+published models; their `paths:` block points at `data_root/` (see
+"Reproducing the training data"). Edit `paths:` if your data live
+elsewhere. All model hyperparameters are exposed in the `model:` block so
 that new ablations can be run without touching Python.
 
 Key knobs:
@@ -191,7 +211,9 @@ Key knobs:
 | `model`         | `rbf_width_factor`           | RBF kernel width in units of centre spacing   |
 | `pretrain`/`finetune` | `n_epochs`, `learning_rate`, `gap` | Stage-specific training schedule      |
 | `finetune`      | `training_regions`           | RCMC region indices used for training (holdouts: 3, 5, 10) |
-| `finetune`      | `loop_weight`                | Enable loop-pixel upweighting (requires `paths.loops_tsv`) |
+| `finetune`      | `loop_weight`                | Enable loop-pixel upweighting (requires `paths.loops_dir`) |
+| `finetune`      | `loop_mode`                  | `compound` (overlapping loop squares multiply; 500 bp) or `fixed` (each pixel up-weighted once; 2 kb) |
+| `pretrain`/`finetune` | `smooth_inputs`        | 5×5 smoothing of the contact-map targets (500 bp: true; 2 kb: false) |
 | `finetune`      | `freeze_distance_embedding`  | Freeze RBF projection during FT (canonical: true)          |
 
 ---
@@ -204,8 +226,8 @@ Cleopatra checkpoint (see `weights/README.md` for load code).
 Additional cell-type / resolution checkpoints and the full set of
 genome-wide predictions are hosted on Zenodo:
 
-- Predictions: **10.5281/zenodo.15299993**
-- Source RCMC / Micro-C data: **10.5281/zenodo.15303879**
+- Predictions: **10.5281/zenodo.20739414**
+- Source RCMC / Micro-C data: **10.5281/zenodo.18623177**
 
 Interactive contact-map visualisations for all four cell lines are also
 available via HiGlass (see the manuscript).

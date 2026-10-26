@@ -1,0 +1,93 @@
+# H1 Cleopatra config at 2 kb resolution.
+# Same architecture as the 500 bp config; longer window and larger
+# sampling gap because each bin now covers 2 kb instead of 500 bp.
+#
+# Prediction window: 1250 bins x 2000 bp = 2.5 Mb, evaluation crop = 2 Mb.
+
+batch_size: 10
+checkpoint_frequency: 20
+
+data:
+  cell_lines: ['H1']
+  resolution: 2000
+  epigenetic_inputs:
+    - DNase-seq
+    - H3K4me1
+    - H3K4me2
+    - H3K4me3
+    - H3K9ac
+    - H3K9me3
+    - H3K27ac
+    - H3K27me3
+    - H3K36me3
+    - H3K79me2
+    - H4K20me1
+    - CTCF
+    - EZH2
+    - POLR2A
+    - JUND
+    - REST
+    - RAD21
+    - H2AFZ
+    - phastCons
+
+paths:
+  # Layout written by scripts/data_prep/prepare_all.sh data_root (see README).
+  epi_root:               data_root/Epigenomics
+  pretrain_contact_root:  data_root/MicroC
+  pretrain_oe_root:       data_root/MicroC/OE_vectors
+  finetune_contact_root:  data_root/RCMC
+  finetune_oe_root:       data_root/RCMC/OE_vectors
+  loops_dir:              data_root/Loops
+
+model:
+  n_bins: 1250
+  positional_dim: 8
+  distance_dim: 8
+  n_Conv_layers: 3
+  Conv_dim: 64
+  Conv_kernel: 21
+  n_SA_layers: 2
+  SA_dim: 96
+  SA_head: 8
+  n_final_layers: 3
+  final_layer_dim: 24
+  final_layer_kernel: 3
+  rbf_n_centers: 64
+  rbf_width_factor: 4.0
+
+pretrain:
+  n_epochs: 60
+  learning_rate: 0.001
+  gap: 500000
+  smooth_inputs: false         # 2 kb targets are not smoothed (published 2 kb models)
+  exclude_rcmc_regions: true
+  distance_weight: true
+  loop_weight: false
+  insulation_loss: true
+  insulation_beta: 1.0
+  distance_weight_rule:
+    start_loc: 0
+    start_weight: 2
+    end_loc: 300
+    end_weight: 1
+  visualize: false
+
+finetune:
+  n_epochs: 200
+  learning_rate: 0.00005
+  gap: 250000
+  smooth_inputs: false         # 2 kb targets are not smoothed (published 2 kb models)
+  training_regions: [0, 2, 4, 6, 7, 8, 9, 11, 12, 13]
+  distance_weight: true
+  loop_weight: true
+  loop_mode: fixed              # each loop pixel up-weighted at most once (published 2 kb models)
+  insulation_loss: false
+  insulation_beta: 1.0
+  freeze_distance_embedding: true
+  distance_weight_rule:
+    start_loc: 0
+    start_weight: 2
+    end_loc: 300
+    end_weight: 1
+  visualize: true
